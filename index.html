@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inhale Exhale - Breathing Animation</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes breatheIn {
+            from { transform: scale(1); }
+            to { transform: scale(1.5); }
+        }
+        @keyframes breatheOut {
+            from { transform: scale(1.5); }
+            to { transform: scale(1); }
+        }
+        .petal {
+            transform-origin: bottom center;
+            transition: all 0.3s ease;
+        }
+        .garden-petal {
+            animation: sway 3s ease-in-out infinite alternate;
+        }
+        @keyframes sway {
+            from { transform: rotate(-5deg); }
+            to { transform: rotate(5deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-green-100 to-blue-200">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-green-800 mb-2">Mindful Breathing</h1>
+            <div class="flex justify-center items-center gap-4 mb-4">
+                <div class="text-lg">
+                    <span class="font-bold">Streak: </span>
+                    <span id="streakCount" class="text-green-600">0</span> days
+                </div>
+                <div class="text-lg">
+                    <span class="font-bold">Petals: </span>
+                    <span id="petalCount" class="text-purple-600">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex flex-col items-center">
+            <!-- Progress Bar -->
+            <div class="w-full max-w-md h-4 bg-gray-200 rounded-full mb-8">
+                <div id="progressBar" class="h-full bg-green-500 rounded-full transition-all duration-100" style="width: 0%"></div>
+            </div>
+
+            <!-- Breathing Flower -->
+            <div id="flowerContainer" class="w-64 h-64 relative mb-8">
+                <svg viewBox="0 0 200 200" class="w-full h-full">
+                    <!-- Center -->
+                    <circle cx="100" cy="100" r="20" fill="#FFD700"/>
+                    <!-- Petals -->
+                    <path class="petal" d="M 100 100 Q 100 50 120 20 Q 140 50 100 100" fill="#FF69B4"/>
+                    <path class="petal" d="M 100 100 Q 150 100 180 80 Q 150 120 100 100" fill="#FF69B4" transform="rotate(72 100 100)"/>
+                    <path class="petal" d="M 100 100 Q 150 100 180 80 Q 150 120 100 100" fill="#FF69B4" transform="rotate(144 100 100)"/>
+                    <path class="petal" d="M 100 100 Q 150 100 180 80 Q 150 120 100 100" fill="#FF69B4" transform="rotate(216 100 100)"/>
+                    <path class="petal" d="M 100 100 Q 150 100 180 80 Q 150 120 100 100" fill="#FF69B4" transform="rotate(288 100 100)"/>
+                </svg>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex flex-col items-center gap-4 mb-8">
+                <div class="flex items-center gap-4">
+                    <button id="startButton" class="px-6 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition">
+                        Start Breathing
+                    </button>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="musicToggle" class="w-4 h-4">
+                        <span>Background Music</span>
+                    </label>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <label for="dailyGoal">Daily Goal:</label>
+                    <select id="dailyGoal" class="px-3 py-1 rounded border border-gray-300">
+                        <option value="5">5 cycles</option>
+                        <option value="10" selected>10 cycles</option>
+                        <option value="15">15 cycles</option>
+                        <option value="20">20 cycles</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Virtual Garden -->
+            <div class="text-center mb-4">
+                <h2 class="text-2xl font-bold text-green-800 mb-2">Your Garden</h2>
+                <div id="virtualGarden" class="flex flex-wrap justify-center gap-4 p-4 min-h-[100px]"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        const state = {
+            isBreathing: false,
+            currentPhase: 'inhale',
+            cycles: 0,
+            petals: parseInt(localStorage.getItem('petals')) || 0,
+            streak: parseInt(localStorage.getItem('streak')) || 0,
+            lastVisit: localStorage.getItem('lastVisit'),
+            audio: new Audio('./bg-music.mp3'),
+        };
+
+        // DOM Elements
+        const elements = {
+            flower: document.querySelector('#flowerContainer svg'),
+            progressBar: document.getElementById('progressBar'),
+            startButton: document.getElementById('startButton'),
+            musicToggle: document.getElementById('musicToggle'),
+            streakCount: document.getElementById('streakCount'),
+            petalCount: document.getElementById('petalCount'),
+            virtualGarden: document.getElementById('virtualGarden'),
+            dailyGoal: document.getElementById('dailyGoal'),
+        };
+
+        // Update UI elements
+        function updateUI() {
+            elements.streakCount.textContent = state.streak;
+            elements.petalCount.textContent = state.petals;
+            renderGarden();
+        }
+
+        // Breathing Animation Control
+        function startBreathing() {
+            if (state.isBreathing) return;
+            state.isBreathing = true;
+            elements.startButton.textContent = 'Stop';
+            breathingCycle();
+        }
+
+        function stopBreathing() {
+            state.isBreathing = false;
+            elements.startButton.textContent = 'Start Breathing';
+            elements.flower.style.animation = '';
+            elements.progressBar.style.width = '0%';
+        }
+
+        // Breathing Cycle Logic
+        function breathingCycle() {
+            if (!state.isBreathing) return;
+
+            const duration = 4000; // 4 seconds
+            const phase = state.currentPhase;
+            
+            elements.flower.style.animation = `${phase === 'inhale' ? 'breatheIn' : 'breatheOut'} ${duration}ms ease-in-out forwards`;
+
+            // Progress bar animation
+            let progress = 0;
+            const interval = 50; // Update every 50ms
+            const progressInterval = setInterval(() => {
+                progress += (interval / duration) * 100;
+                elements.progressBar.style.width = `${Math.min(progress, 100)}%`;
+            }, interval);
+
+            setTimeout(() => {
+                clearInterval(progressInterval);
+                if (!state.isBreathing) return;
+
+                if (phase === 'exhale') {
+                    state.cycles++;
+                    checkProgress();
+                }
+
+                state.currentPhase = phase === 'inhale' ? 'exhale' : 'inhale';
+                breathingCycle();
+            }, duration);
+        }
+
+        // Progress Checking
+        function checkProgress() {
+            if (state.cycles % 5 === 0) {
+                state.petals++;
+                localStorage.setItem('petals', state.petals);
+                updateUI();
+                showMessage('🌸 You earned a new petal!');
+            }
+
+            const dailyGoal = parseInt(elements.dailyGoal.value);
+            if (state.cycles === dailyGoal) {
+                showMessage('🎉 Congratulations! You\'ve reached your daily goal!');
+            }
+        }
+
+        // Virtual Garden Rendering
+        function renderGarden() {
+            elements.virtualGarden.innerHTML = '';
+            for (let i = 0; i < state.petals; i++) {
+                const petal = document.createElement('div');
+                petal.className = 'garden-petal';
+                petal.innerHTML = '🌸';
+                elements.virtualGarden.appendChild(petal);
+            }
+        }
+
+        // Streak Management
+        function updateStreak() {
+            const today = new Date().toDateString();
+            if (state.lastVisit !== today) {
+                if (state.lastVisit === new Date(Date.now() - 86400000).toDateString()) {
+                    state.streak++;
+                } else if (state.lastVisit !== null) {
+                    state.streak = 1;
+                }
+                state.lastVisit = today;
+                localStorage.setItem('streak', state.streak);
+                localStorage.setItem('lastVisit', today);
+            }
+        }
+
+        // Message Display
+        function showMessage(text) {
+            const message = document.createElement('div');
+            message.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg';
+            message.textContent = text;
+            document.body.appendChild(message);
+            setTimeout(() => message.remove(), 3000);
+        }
+
+        // Event Listeners
+        elements.startButton.addEventListener('click', () => {
+            if (state.isBreathing) {
+                stopBreathing();
+            } else {
+                startBreathing();
+            }
+        });
+
+        elements.musicToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                state.audio.loop = true;
+                state.audio.play();
+            } else {
+                state.audio.pause();
+            }
+        });
+
+        // Initialize
+        updateStreak();
+        updateUI();
+    </script>
+</body>
+</html> 
